@@ -1,0 +1,42 @@
+[
+  {
+    "id": "shop_001",
+    "name": "Freightliner of Columbus",
+    "distance_miles": 12,
+    "open_bay_time": "2:00 PM",
+    "certifications": ["Freightliner", "Detroit"],
+    "has_def_pump": true,
+    "labor_rate": 145,
+    "phone": "614-555-0182"
+  },
+  {
+    "id": "shop_002",
+    "name": "Peterbilt Columbus",
+    "distance_miles": 18,
+    "open_bay_time": "4:30 PM",
+    "certifications": ["Peterbilt", "PACCAR"],
+    "has_def_pump": true,
+    "labor_rate": 155,
+    "phone": "614-555-0291"
+  },
+  {
+    "id": "shop_003",
+    "name": "Speedco Truck Care I-70",
+    "distance_miles": 8,
+    "open_bay_time": "Now",
+    "certifications": ["General"],
+    "has_def_pump": false,
+    "labor_rate": 110,
+    "phone": "614-555-0344"
+  },
+  {
+    "id": "shop_004",
+    "name": "Love's Truck Care #441",
+    "distance_miles": 5,
+    "open_bay_time": "Now",
+    "certifications": ["General"],
+    "has_def_pump": false,
+    "labor_rate": 95,
+    "phone": "614-555-0419"
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "warranty_code": "EPA_EMISSION_COVERAGE",
+    "part": "DEF Pump Assembly",
+    "coverage": "Federal EPA Emissions Warranty — 5yr/100k miles",
+    "claim_value": 340,
+    "labor_included": true,
+    "expires_miles": 87500
+  },
+  {
+    "warranty_code": "POWERTRAIN_BASIC",
+    "part": "Oil Pressure Sensor",
+    "coverage": "OEM Powertrain Basic — 3yr/36k miles",
+    "claim_value": 95,
+    "labor_included": false,
+    "expires_miles": 31200
+  }
+]

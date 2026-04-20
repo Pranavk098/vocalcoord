@@ -1,0 +1,47 @@
+[
+  {
+    "spn": 4334,
+    "fmi": 18,
+    "description": "DEF System Pressure Low",
+    "severity": "red_stop",
+    "plain_english": "Your DEF pump is failing. Engine will derate in ~50 miles if unaddressed.",
+    "likely_part": "DEF Pump Assembly",
+    "warranty_code": "EPA_EMISSION_COVERAGE"
+  },
+  {
+    "spn": 3251,
+    "fmi": 16,
+    "description": "DPF Differential Pressure High",
+    "severity": "yellow_caution",
+    "plain_english": "Your diesel particulate filter needs a regen. Find a safe spot to idle for 20 minutes.",
+    "likely_part": null,
+    "warranty_code": null
+  },
+  {
+    "spn": 100,
+    "fmi": 1,
+    "description": "Engine Oil Pressure Low",
+    "severity": "red_stop",
+    "plain_english": "Critical: pull over safely and shut down immediately. Engine damage risk.",
+    "likely_part": "Oil Pressure Sensor",
+    "warranty_code": "POWERTRAIN_BASIC"
+  },
+  {
+    "spn": 520192,
+    "fmi": 31,
+    "description": "SCR Efficiency Below Threshold",
+    "severity": "yellow_caution",
+    "plain_english": "Emissions system underperforming. Needs shop attention within 500 miles.",
+    "likely_part": "SCR Catalyst",
+    "warranty_code": "EPA_EMISSION_COVERAGE"
+  },
+  {
+    "spn": 0,
+    "fmi": 0,
+    "description": "No Active Faults",
+    "severity": "advisory",
+    "plain_english": "All systems nominal.",
+    "likely_part": null,
+    "warranty_code": null
+  }
+]
