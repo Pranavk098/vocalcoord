@@ -1,18 +1,34 @@
 [
   {
     "warranty_code": "EPA_EMISSION_COVERAGE",
-    "part": "DEF Pump Assembly",
-    "coverage": "Federal EPA Emissions Warranty — 5yr/100k miles",
+    "part": "DEF Pump Assembly / SCR / EGR",
+    "coverage": "Federal EPA Emissions Warranty - 5yr/100k miles",
     "claim_value": 340,
     "labor_included": true,
     "expires_miles": 87500
   },
   {
     "warranty_code": "POWERTRAIN_BASIC",
-    "part": "Oil Pressure Sensor",
-    "coverage": "OEM Powertrain Basic — 3yr/36k miles",
+    "part": "Engine Sensors & Oil System",
+    "coverage": "OEM Powertrain Basic - 3yr/36k miles",
     "claim_value": 95,
     "labor_included": false,
     "expires_miles": 31200
+  },
+  {
+    "warranty_code": "DRIVETRAIN_EXTENDED",
+    "part": "Turbocharger Assembly",
+    "coverage": "Extended Drivetrain Coverage - 2yr/unlimited miles",
+    "claim_value": 520,
+    "labor_included": true,
+    "expires_miles": null
+  },
+  {
+    "warranty_code": "BRAKE_FEDERAL",
+    "part": "Air Dryer & Brake System Components",
+    "coverage": "FMCSA Safety Component Warranty - 1yr/unlimited miles",
+    "claim_value": 210,
+    "labor_included": true,
+    "expires_miles": null
   }
 ]

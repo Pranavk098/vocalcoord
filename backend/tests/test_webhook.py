@@ -1,5 +1,6 @@
 # backend/tests/test_webhook.py
 import pytest
+from unittest.mock import patch, AsyncMock
 from httpx import AsyncClient, ASGITransport
 from backend.main import app
 
@@ -25,8 +26,10 @@ async def test_tool_call_webhook_returns_voice_reply():
             "load_number": "LOAD-9910"
         }
     }
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/webhook/tool-call", json=payload)
+    mock_reply = "DEF pump is failing — bay booked at Freightliner of Columbus, warranty covers it. Set nav — yes or no?"
+    with patch("backend.agents.response.build_voice_reply", new=AsyncMock(return_value=mock_reply)):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/webhook/tool-call", json=payload)
 
     assert response.status_code == 200
     data = response.json()

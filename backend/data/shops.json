@@ -4,8 +4,10 @@
     "name": "Freightliner of Columbus",
     "distance_miles": 12,
     "open_bay_time": "2:00 PM",
-    "certifications": ["Freightliner", "Detroit"],
+    "certifications": ["Freightliner", "Detroit", "Mercedes-Benz"],
     "has_def_pump": true,
+    "has_turbo": true,
+    "has_egr": true,
     "labor_rate": 145,
     "phone": "614-555-0182"
   },
@@ -14,8 +16,10 @@
     "name": "Peterbilt Columbus",
     "distance_miles": 18,
     "open_bay_time": "4:30 PM",
-    "certifications": ["Peterbilt", "PACCAR"],
+    "certifications": ["Peterbilt", "PACCAR", "Cummins"],
     "has_def_pump": true,
+    "has_turbo": true,
+    "has_egr": false,
     "labor_rate": 155,
     "phone": "614-555-0291"
   },
@@ -26,6 +30,8 @@
     "open_bay_time": "Now",
     "certifications": ["General"],
     "has_def_pump": false,
+    "has_turbo": false,
+    "has_egr": false,
     "labor_rate": 110,
     "phone": "614-555-0344"
   },
@@ -36,7 +42,33 @@
     "open_bay_time": "Now",
     "certifications": ["General"],
     "has_def_pump": false,
+    "has_turbo": false,
+    "has_egr": false,
     "labor_rate": 95,
     "phone": "614-555-0419"
+  },
+  {
+    "id": "shop_005",
+    "name": "Kenworth of Columbus",
+    "distance_miles": 22,
+    "open_bay_time": "3:15 PM",
+    "certifications": ["Kenworth", "PACCAR", "Cummins", "Detroit"],
+    "has_def_pump": true,
+    "has_turbo": true,
+    "has_egr": true,
+    "labor_rate": 160,
+    "phone": "614-555-0537"
+  },
+  {
+    "id": "shop_006",
+    "name": "TA Truck Service I-70 East",
+    "distance_miles": 15,
+    "open_bay_time": "1:30 PM",
+    "certifications": ["General", "Cummins"],
+    "has_def_pump": true,
+    "has_turbo": false,
+    "has_egr": false,
+    "labor_rate": 125,
+    "phone": "614-555-0623"
   }
 ]

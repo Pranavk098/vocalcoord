@@ -1,45 +1,46 @@
 // frontend/hooks/useConversation.ts
 'use client'
 import { useConversation as useElevenLabs } from '@elevenlabs/react'
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 
+// Map v1.1.1 status ('disconnected') to our UI type ('idle')
 export type ConversationStatus = 'idle' | 'connecting' | 'connected' | 'error'
 
-export function useConversation(onConversationId: (id: string) => void) {
-  const [status, setStatus] = useState<ConversationStatus>('idle')
-  const [isSpeaking, setIsSpeaking] = useState(false)
+function mapStatus(raw: string): ConversationStatus {
+  if (raw === 'disconnected') return 'idle'
+  if (raw === 'connecting' || raw === 'connected' || raw === 'error') return raw
+  return 'idle'
+}
 
-  const conversation = useElevenLabs({
+export function useConversation(onConversationId: (id: string) => void) {
+  const { startSession, endSession, status: rawStatus, isSpeaking } = useElevenLabs({
     onConnect: (props: { conversationId?: string }) => {
-      setStatus('connected')
-      if (props.conversationId) {
-        onConversationId(props.conversationId)
+      const id = props.conversationId
+      if (id) {
+        console.log('[ElevenLabs] conversationId from onConnect:', id)
+        onConversationId(id)
+        // Register with backend so webhook events route to this SSE stream
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000'
+        fetch(`${backendUrl}/session/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ conversationId: id }),
+        }).catch(console.error)
       }
-    },
-    onDisconnect: () => {
-      setStatus('idle')
-      setIsSpeaking(false)
-    },
-    onError: () => {
-      setStatus('error')
-    },
-    // @ts-ignore
-    onMessage: (msg: { type: string }) => {
-      setIsSpeaking(msg.type === 'agent_response')
     },
   })
 
+  const status = mapStatus(rawStatus)
+
   const start = useCallback(async () => {
-    setStatus('connecting')
     const agentId = process.env.NEXT_PUBLIC_ELEVENLABS_AGENT_ID
     if (!agentId) throw new Error('NEXT_PUBLIC_ELEVENLABS_AGENT_ID not set')
-    await conversation.startSession({ agentId })
-  }, [conversation])
+    startSession({ agentId })
+  }, [startSession])
 
   const stop = useCallback(async () => {
-    await conversation.endSession()
-    setStatus('idle')
-  }, [conversation])
+    endSession()
+  }, [endSession])
 
   return { status, isSpeaking, start, stop }
 }

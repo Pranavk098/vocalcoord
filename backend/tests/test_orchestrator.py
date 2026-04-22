@@ -2,10 +2,10 @@
 from backend.agents.orchestrator import classify_intent, ROUTING_MAP
 
 
-def test_fault_detected_routes_to_three_agents():
+def test_fault_detected_routes_to_four_agents():
     intent = classify_intent("trigger_fault_response", {})
     assert intent == "fault_detected"
-    assert set(ROUTING_MAP[intent]) == {"shop_caller", "warranty_scout", "dispatch_relay"}
+    assert set(ROUTING_MAP[intent]) == {"shop_caller", "warranty_scout", "wellness_copilot", "dispatch_relay"}
 
 
 def test_wellness_check_routes_to_wellness():

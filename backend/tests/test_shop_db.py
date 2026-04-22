@@ -4,7 +4,7 @@ from backend.tools.shop_db import search_shops, get_best_shop
 
 def test_search_shops_returns_all_within_radius():
     results = search_shops(max_distance=50)
-    assert len(results) == 4
+    assert len(results) == 6
 
 
 def test_search_shops_filters_by_distance():
@@ -15,7 +15,7 @@ def test_search_shops_filters_by_distance():
 def test_search_shops_filters_by_part_availability():
     results = search_shops(needs_def_pump=True)
     assert all(s["has_def_pump"] for s in results)
-    assert len(results) == 2
+    assert len(results) == 4
 
 
 def test_get_best_shop_prefers_shop_with_part():

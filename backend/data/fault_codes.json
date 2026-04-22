@@ -36,6 +36,51 @@
     "warranty_code": "EPA_EMISSION_COVERAGE"
   },
   {
+    "spn": 102,
+    "fmi": 1,
+    "description": "Boost Pressure Low",
+    "severity": "yellow_caution",
+    "plain_english": "Turbo boost pressure is below spec. Power will be reduced — avoid steep grades and get to a shop within 200 miles.",
+    "likely_part": "Turbocharger",
+    "warranty_code": "DRIVETRAIN_EXTENDED"
+  },
+  {
+    "spn": 110,
+    "fmi": 0,
+    "description": "Engine Coolant Temperature High",
+    "severity": "red_stop",
+    "plain_english": "Engine is overheating. Pull over now and shut down — continuing risks catastrophic engine failure.",
+    "likely_part": "Coolant Temp Sensor",
+    "warranty_code": "POWERTRAIN_BASIC"
+  },
+  {
+    "spn": 412,
+    "fmi": 3,
+    "description": "EGR Differential Pressure Sensor Fault",
+    "severity": "yellow_caution",
+    "plain_english": "EGR system sensor is reporting out of range. Emissions may be affected — schedule shop visit within 300 miles.",
+    "likely_part": "EGR Valve",
+    "warranty_code": "EPA_EMISSION_COVERAGE"
+  },
+  {
+    "spn": 521,
+    "fmi": 9,
+    "description": "Brake System Air Pressure Low",
+    "severity": "red_stop",
+    "plain_english": "Brake air pressure is critically low. Pull over safely now — do not continue until pressure is restored.",
+    "likely_part": "Air Dryer Cartridge",
+    "warranty_code": "BRAKE_FEDERAL"
+  },
+  {
+    "spn": 94,
+    "fmi": 1,
+    "description": "Fuel Delivery Pressure Low",
+    "severity": "yellow_caution",
+    "plain_english": "Fuel pressure is below normal. Engine may sputter at highway speed — get to a shop before the next major grade.",
+    "likely_part": "Fuel Filter",
+    "warranty_code": null
+  },
+  {
     "spn": 0,
     "fmi": 0,
     "description": "No Active Faults",

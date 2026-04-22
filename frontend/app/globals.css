@@ -1,13 +1,44 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-* {
-  box-sizing: border-box;
+/* ─── DESIGN TOKENS ────────────────────────────────────────── */
+:root {
+  --green:       #22C55E;
+  --amber:       #F59E0B;
+  --red:         #EF4444;
+  --red-bg:      #200a0a;
+  --red-border:  #6b1e1e;
+
+  --bg:          #0f1012;
+  --surface:     #1c1e22;
+  --surface-2:   #252830;
+  --border:      #33363d;
+  --border-dim:  #2a2d33;
+
+  --text:        #F1F5F9;
+  --text-muted:  #8B949E;
+  --text-dim:    #4B5563;
+
+  --font-mono:   'Space Mono', ui-monospace, monospace;
+}
+
+/* ─── RESET ─────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
-  background-color: #09090b;
-  color: #f4f4f5;
-  font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, monospace;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* ─── SCROLLBAR ─────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }

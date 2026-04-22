@@ -67,16 +67,6 @@ function reducer(state: AgentState, action: Action): AgentState {
     case 'voice_reply_ready':
       return { ...state, voiceReply: event.data.text }
 
-    case 'dispatch_sent': {
-      const entry = {
-        id: _nextId++,
-        timestamp: Date.now(),
-        agent: 'dispatch_relay',
-        message: `${event.data.load_number} notified — +${event.data.eta_delay} delay`
-      }
-      return { ...state, eventLog: [...state.eventLog, entry] }
-    }
-
     default:
       return state
   }
@@ -88,13 +78,22 @@ export function useAgentEvents(conversationId: string | null) {
 
   useEffect(() => {
     dispatch({ type: 'RESET' })
-    if (!conversationId) return
+    if (!conversationId) {
+      console.log('[SSE] No conversationId yet — not connecting')
+      return
+    }
 
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000'
-    const es = new EventSource(`${backendUrl}/events/${conversationId}`)
+    const url = `${backendUrl}/events/${conversationId}`
+    console.log('[SSE] Connecting to', url)
+    const es = new EventSource(url)
     esRef.current = es
 
+    es.onopen = () => console.log('[SSE] Connected for', conversationId)
+    es.onerror = (e) => console.error('[SSE] Error', e)
+
     es.onmessage = (e) => {
+      console.log('[SSE] Event received:', e.data)
       try {
         const event = JSON.parse(e.data) as AgentEvent
         dispatch({ type: 'EVENT', payload: event })

@@ -1,48 +1,76 @@
-// frontend/components/DriverView/FaultBanner.tsx
 'use client'
-import { motion, AnimatePresence } from 'framer-motion'
-import { AlertTriangle, AlertCircle, Info } from 'lucide-react'
 import { FaultData } from '@/types/events'
-import { cn } from '@/lib/utils'
 
 interface FaultBannerProps {
   fault: FaultData | null
 }
 
-const SEVERITY_CONFIG = {
-  red:      { bg: 'bg-red-950 border-red-500',    text: 'text-red-400',    icon: AlertTriangle, label: 'RED STOP' },
-  yellow:   { bg: 'bg-yellow-950 border-yellow-500', text: 'text-yellow-400', icon: AlertCircle,  label: 'CAUTION' },
-  advisory: { bg: 'bg-zinc-900 border-zinc-600',  text: 'text-zinc-400',   icon: Info,           label: 'ADVISORY' },
+const SEV_CONFIG = {
+  red:      { label: 'RED STOP',   color: 'var(--red)',   bg: 'var(--red-bg)',   borderColor: 'var(--red-border)' },
+  yellow:   { label: 'CAUTION',    color: '#F59E0B',      bg: '#1a1200',         borderColor: '#78350f' },
+  advisory: { label: 'ADVISORY',   color: 'var(--text-muted)', bg: 'var(--surface)', borderColor: 'var(--border)' },
 }
 
 export function FaultBanner({ fault }: FaultBannerProps) {
-  const config = fault ? SEVERITY_CONFIG[fault.severity] : null
+  if (!fault) return null
+
+  const cfg = SEV_CONFIG[fault.severity]
 
   return (
-    <AnimatePresence>
-      {fault && config && (
-        <motion.div
-          initial={{ y: -80, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -80, opacity: 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-          className={cn(
-            'w-full rounded-lg border px-4 py-3 mb-4',
-            config.bg
-          )}
-        >
-          <div className="flex items-center gap-3">
-            <config.icon className={cn('w-5 h-5 shrink-0', config.text)} />
-            <div>
-              <div className={cn('text-xs font-bold tracking-widest', config.text)}>
-                {config.label}
-              </div>
-              <div className="text-sm text-zinc-100 font-medium">{fault.description}</div>
-              <div className="text-xs text-zinc-400 font-mono">{fault.code}</div>
-            </div>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    <div style={{
+      border: `1px solid ${cfg.borderColor}`,
+      background: cfg.bg,
+      padding: '13px 15px',
+      borderRadius: '2px',
+      position: 'relative',
+      overflow: 'hidden',
+    }}>
+      {/* animated top bar */}
+      <div style={{
+        position: 'absolute',
+        top: 0, left: 0, right: 0,
+        height: '2px',
+        background: cfg.color,
+        animation: fault.severity === 'red' ? 'fault-pulse 1.2s ease-in-out infinite' : 'none',
+      }} />
+
+      <div style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: '9px',
+        fontWeight: 700,
+        letterSpacing: '0.18em',
+        color: cfg.color,
+        marginBottom: '5px',
+      }}>
+        {cfg.label}
+      </div>
+
+      <div style={{
+        fontSize: '15px',
+        fontWeight: 700,
+        color: 'var(--text)',
+        letterSpacing: '-0.01em',
+        marginBottom: '3px',
+        lineHeight: 1.2,
+      }}>
+        {fault.description}
+      </div>
+
+      <div style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: '11px',
+        color: 'var(--text-muted)',
+        letterSpacing: '0.06em',
+      }}>
+        {fault.code}
+      </div>
+
+      <style>{`
+        @keyframes fault-pulse {
+          0%, 100% { opacity: 1; }
+          50%       { opacity: 0.2; }
+        }
+      `}</style>
+    </div>
   )
 }

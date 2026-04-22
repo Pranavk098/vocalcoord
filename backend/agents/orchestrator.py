@@ -7,7 +7,7 @@ from backend.agents.dispatch_relay import run_dispatch_relay
 from backend.events import emit
 
 ROUTING_MAP: dict[str, list[str]] = {
-    "fault_detected":  ["shop_caller", "warranty_scout", "dispatch_relay"],
+    "fault_detected":  ["shop_caller", "warranty_scout", "wellness_copilot", "dispatch_relay"],
     "wellness_check":  ["wellness_copilot"],
     "warranty_query":  ["warranty_scout"],
     "dispatch_update": ["dispatch_relay"],

@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.env
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Node
+node_modules/
+.next/
+.vercel/
+frontend/.env.local
+
+# Misc
+.DS_Store
+*.log
+preview.html
+"Truck Driver Voice Assistant POC.pdf"

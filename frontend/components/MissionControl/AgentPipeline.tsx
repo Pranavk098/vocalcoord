@@ -10,7 +10,12 @@ interface AgentPipelineProps {
 
 export function AgentPipeline({ agents }: AgentPipelineProps) {
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '8px',
+      flexShrink: 0,
+    }}>
       {AGENT_ORDER.map((name) => (
         <AgentCard key={name} name={name} state={agents[name]} />
       ))}
