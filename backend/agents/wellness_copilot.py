@@ -70,6 +70,13 @@ def _evaluate_hos(hos: float) -> tuple[str, str, str | None]:
     return f"HOS: {hos:.1f} hrs remaining.", "CLEAR", None
 
 
+def evaluate_hos_batch(hos_values: list[float]) -> list[tuple[str, str, str | None]]:
+    """Batch HOS computation: one pass over N clocks, no per-call tracing or
+    event-loop hops. Used by evals/sweeps; the single-turn runner below calls
+    _evaluate_hos directly (same math, no overhead either way)."""
+    return [_evaluate_hos(float(h)) for h in hos_values]
+
+
 async def run_wellness_copilot(state: dict) -> dict:
     conv_id, trace_id, t0 = state["conversation_id"], state["trace_id"], state["t0"]
     hos = float(state.get("hos_hours_remaining", 8.0))

@@ -1,5 +1,5 @@
 from backend.providers import get_warranty_provider
-from backend.tools.j1939 import lookup_fault, parse_fault_code
+from backend.tools.j1939 import lookup_fault_cached
 from backend.tracing import emit_traced
 
 
@@ -11,8 +11,7 @@ async def run_warranty_scout(state: dict) -> dict:
         "agent": "warranty_scout", "message": "Checking warranty coverage for detected fault...",
     })
 
-    parsed = parse_fault_code(state.get("fault_code"))
-    fault = lookup_fault(parsed[0]) if parsed else None
+    parsed, fault = lookup_fault_cached(state.get("fault_code") or "")
 
     findings = None
     if fault and fault.get("warranty_code"):

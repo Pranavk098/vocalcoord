@@ -7,6 +7,7 @@ tenancy is real.
 """
 import json
 import sqlite3
+import threading
 from pathlib import Path
 from time import time
 
@@ -26,6 +27,10 @@ CREATE INDEX IF NOT EXISTS idx_audit_trace ON audit_events(trace_id);
 """
 
 _conn: sqlite3.Connection | None = None
+# Serializes cross-thread writes: tracing.emit_traced offloads record() to a
+# worker thread so parallel branches don't block the event loop, but SQLite
+# still needs one writer at a time (even with check_same_thread=False).
+_write_lock = threading.Lock()
 
 
 def _get_conn() -> sqlite3.Connection:
@@ -34,17 +39,26 @@ def _get_conn() -> sqlite3.Connection:
         _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         _conn = sqlite3.connect(_DB_PATH, check_same_thread=False)
         _conn.executescript(_SCHEMA)
+        # WAL + NORMAL: each per-event commit drops from ~7.5ms to ~1-2ms on
+        # local disk. Durability tradeoff is fine for a demo audit trail —
+        # the SSE queue (in-memory) is the source of truth for live clients.
+        try:
+            _conn.execute("PRAGMA journal_mode=WAL;")
+            _conn.execute("PRAGMA synchronous=NORMAL;")
+        except sqlite3.Error:
+            pass
         _conn.commit()
     return _conn
 
 
 def record(conversation_id: str, trace_id: str, event_type: str, data: dict) -> None:
     conn = _get_conn()
-    conn.execute(
-        "INSERT INTO audit_events (conversation_id, trace_id, ts, event_type, data_json) VALUES (?, ?, ?, ?, ?)",
-        (conversation_id, trace_id, time(), event_type, json.dumps(data, default=str)),
-    )
-    conn.commit()
+    with _write_lock:
+        conn.execute(
+            "INSERT INTO audit_events (conversation_id, trace_id, ts, event_type, data_json) VALUES (?, ?, ?, ?, ?)",
+            (conversation_id, trace_id, time(), event_type, json.dumps(data, default=str)),
+        )
+        conn.commit()
 
 
 def history_for_trace(trace_id: str) -> list[dict]:

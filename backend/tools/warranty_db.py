@@ -19,3 +19,20 @@ def _load() -> None:
 def lookup_warranty(warranty_code: str) -> Optional[dict]:
     _load()
     return _by_code.get(warranty_code)
+
+
+def lookup_warranty_cached(warranty_code: str) -> Optional[dict]:
+    """TTL-cached warranty lookup. Sync dict hit today; same key fronts a
+    future OEM claims API without changing callers."""
+    try:
+        from backend import cache as _cache
+
+        key = f"wty:{(warranty_code or '').strip()}"
+        hit = _cache.fault_decode_cache.get(key)
+        if hit is not None:
+            return hit
+        out = lookup_warranty(warranty_code)
+        _cache.fault_decode_cache.set(key, out)
+        return out
+    except Exception:
+        return lookup_warranty(warranty_code)

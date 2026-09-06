@@ -143,19 +143,35 @@ async def build_voice_reply_with_meta(state: dict) -> tuple[str, str]:
         return "No certified shop found within range. Want me to widen the search — yes or no?", "template:shop"
     if _is_complete_fault_response(state):
         return _render_template(state), "template"
+    from time import monotonic
+
+    from backend.latency import BUDGETS_MS
     from backend.llm import llm_synthesize
 
     attempts = 1 + max(0, SYNTHESIS_MAX_RETRIES)
+    # Overall OOD budget: retries + backoff must never exceed the LLM cap
+    # (default 2000ms) — a slow LLM degrades to template, never stalls.
+    # The wait_for here caps the attempt itself (a hung backend or a future
+    # provider that skips its own timeout); llm_synthesize enforces the same
+    # budget internally, so the tighter of the two always wins.
+    deadline = monotonic() + BUDGETS_MS["synthesize_llm"] / 1000.0
     last_error: Exception | None = None
     for attempt in range(1, attempts + 1):
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            break
         try:
-            text, backend_used = await llm_synthesize(_findings_block(state))
+            text, backend_used = await asyncio.wait_for(
+                llm_synthesize(_findings_block(state)), timeout=remaining
+            )
             return text, f"llm:{backend_used}"
         except Exception as e:  # noqa: BLE001 — any LLM failure degrades, never dead air
             last_error = e
             log.warning("LLM synthesis attempt %d/%d failed: %s", attempt, attempts, e)
-            if attempt < attempts:
+            if attempt < attempts and monotonic() + 0.2 * attempt < deadline:
                 await asyncio.sleep(0.2 * attempt)
+            else:
+                break
     log.warning("LLM synthesis failed, using degraded template: %s", last_error)
     return _render_degraded_template(state), "degraded"
 

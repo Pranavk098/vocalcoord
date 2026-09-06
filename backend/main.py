@@ -52,6 +52,13 @@ _INVALID_LOC_STRINGS = {"", "no location provided", "unknown", "none", "n/a"}
 # (reply, expires_at) — TTL'd so ElevenLabs re-trigger guard doesn't grow forever
 _reply_cache: dict[str, tuple[str, float]] = {}
 
+# Last-turn server-side stage timings by trace_id (parse_ms, graph_ms, total_ms).
+# In-process readers (scripts/eval_latency.py via ASGITransport) share memory
+# with the app, so the eval's per-stage breakdown is true server timing, not a
+# proxy. Bounded: keeps only the most recent 200 turns. Prod observability for
+# the same stages is the turn_complete log line + audit elapsed_ms waterfall.
+_last_turn_stages: dict[str, dict] = {}
+
 
 def _cache_get(key: str) -> str | None:
     entry = _reply_cache.get(key)
@@ -221,7 +228,15 @@ def _resolve_location(raw_loc) -> dict:
 
 @app.post("/webhook/tool-call", response_model=ToolCallResponse)
 async def tool_call_webhook(request: Request):
+    from time import perf_counter
+
     t0 = monotonic()
+    # NOTE: t0 stays monotonic-based — it flows into state and tracing.emit_traced
+    # for audit elapsed_ms (pre-existing clock basis). Server stage timings use
+    # perf_counter (_t_*): on Windows monotonic() ticks at ~15.6ms granularity,
+    # which quantizes sub-50ms turns to 0.0/15.6/31.2ms; perf_counter is QPC-backed.
+    _t_turn0 = perf_counter()
+    _t_parse0 = perf_counter()
     body = await verify_elevenlabs_webhook(request)
 
     try:
@@ -290,27 +305,15 @@ async def tool_call_webhook(request: Request):
         _cache_set(conversation_id, result["voice_reply"])
         return ToolCallResponse(result=result["voice_reply"])
 
-    try:
-        params = FaultParameters(**{k: v for k, v in raw_params.items() if k in FaultParameters.model_fields})
-    except ValidationError as e:
-        log.warning("Invalid tool-call parameters, dropping bad fields and retrying with safe defaults: %s", e)
-        raw_hos = raw_params.get("hos_hours_remaining")
-        safe = {k: v for k, v in raw_params.items() if k in ("fault_code", "driver_location", "load_number")}
-        if isinstance(raw_hos, (int, float)) and 0 <= raw_hos <= 11:
-            safe["hos_hours_remaining"] = raw_hos
-        try:
-            params = FaultParameters(**safe)
-        except ValidationError:
-            # A non-HOS field was also malformed (e.g. a non-string/dict driver_location) —
-            # fall all the way back to defaults rather than risk a second crash.
-            params = FaultParameters()
-
+    # NOTE: params was already validated above (single parse — the pre-revamp
+    # code re-validated the identical dict here a second time).
     cached = _cache_get(conversation_id)
     if cached:
         log.info("trace_id=%s Returning cached reply for %s — ignoring re-trigger", trace_id, conversation_id)
         return ToolCallResponse(result=cached)
 
     fault_code, fault_resolved, severity, fault = _resolve_fault(params.fault_code)
+    parse_ms = round((perf_counter() - _t_parse0) * 1000, 2)
 
     await emit_traced(conversation_id, trace_id, t0, "fault_detected", {
         "code": fault_code,
@@ -348,9 +351,40 @@ async def tool_call_webhook(request: Request):
         parameters={k: v for k, v in raw_params.items()},
     )
 
-    result = await graph.ainvoke(initial_state, config={"configurable": {"thread_id": conversation_id}})
+    # Outer turn budget (BUDGETS_MS["turn"], default 2500ms): the graph's
+    # branch-level budgets degrade slow agents, but this guard covers the
+    # pathological case (checkpoint stall, LLM hang past its own budget).
+    # Degraded reply keeps the driver moving; never fail the turn.
+    from backend.latency import BUDGETS_MS
 
-    await emit_traced(conversation_id, trace_id, t0, "voice_reply_ready", {"text": result["voice_reply"]})
+    _t_graph0 = perf_counter()
+    try:
+        result = await asyncio.wait_for(
+            graph.ainvoke(initial_state, config={"configurable": {"thread_id": conversation_id}}),
+            timeout=BUDGETS_MS["turn"] / 1000.0,
+        )
+        reply_text = result["voice_reply"]
+    except asyncio.TimeoutError:
+        log.warning("trace_id=%s turn budget exceeded (%.0fms) — degraded reply",
+                    trace_id, BUDGETS_MS["turn"])
+        from backend.agents.response import _render_degraded_template
 
-    _cache_set(conversation_id, result["voice_reply"])
-    return ToolCallResponse(result=result["voice_reply"])
+        reply_text = _render_degraded_template(dict(initial_state))
+        await emit_traced(conversation_id, trace_id, t0, "turn_degraded",
+                          {"reason": f"turn_timeout>{BUDGETS_MS['turn']:.0f}ms"})
+    graph_ms = round((perf_counter() - _t_graph0) * 1000, 2)
+
+    await emit_traced(conversation_id, trace_id, t0, "voice_reply_ready", {"text": reply_text})
+
+    # Stage-timing log line: parse->fault_detected vs graph turn vs total.
+    # scripts/eval_latency.py scrapes the audit trail for the full per-stage
+    # waterfall; this line gives single-turn observability in plain logs.
+    total_ms = round((perf_counter() - _t_turn0) * 1000, 1)
+    _last_turn_stages[trace_id] = {"parse_ms": parse_ms, "graph_ms": graph_ms, "total_ms": total_ms}
+    while len(_last_turn_stages) > 200:
+        _last_turn_stages.pop(next(iter(_last_turn_stages)))
+    log.info("trace_id=%s turn_complete parse_ms=%.1f graph_ms=%.1f total_ms=%.1f",
+             trace_id, parse_ms, graph_ms, total_ms)
+
+    _cache_set(conversation_id, reply_text)
+    return ToolCallResponse(result=reply_text)

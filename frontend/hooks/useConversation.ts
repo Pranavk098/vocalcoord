@@ -12,20 +12,27 @@ function mapStatus(raw: string): ConversationStatus {
   return 'idle'
 }
 
-export function useConversation(onConversationId: (id: string) => void) {
+export function useConversation(onSession: (id: string, token: string | null) => void) {
   const { startSession, endSession, status: rawStatus, isSpeaking } = useElevenLabs({
     onConnect: (props: { conversationId?: string }) => {
       const id = props.conversationId
       if (id) {
         console.log('[ElevenLabs] conversationId from onConnect:', id)
-        onConversationId(id)
-        // Register with backend so webhook events route to this SSE stream
+        // Register with backend so webhook events route to this SSE stream.
+        // The backend gates /events/{id} on ?token= — capture the signed token
+        // here and hand it to the SSE hook via onSession (missing token = 403).
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000'
         fetch(`${backendUrl}/session/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ conversationId: id }),
-        }).catch(console.error)
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((body) => onSession(id, body?.token ?? null))
+          .catch((e) => {
+            console.error(e)
+            onSession(id, null)
+          })
       }
     },
   })

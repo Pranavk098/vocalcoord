@@ -75,7 +75,7 @@ function reducer(state: AgentState, action: Action): AgentState {
   }
 }
 
-export function useAgentEvents(conversationId: string | null) {
+export function useAgentEvents(conversationId: string | null, sessionToken: string | null = null) {
   const [state, dispatch] = useReducer(reducer, initialAgentState)
   const esRef = useRef<EventSource | null>(null)
 
@@ -87,8 +87,11 @@ export function useAgentEvents(conversationId: string | null) {
     }
 
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000'
-    const url = `${backendUrl}/events/${conversationId}`
-    console.log('[SSE] Connecting to', url)
+    // Backend gates /events/{id} on the signed session token (?token=) issued
+    // by POST /session/register — connecting without it is a 403.
+    const qs = sessionToken ? `?token=${encodeURIComponent(sessionToken)}` : ''
+    const url = `${backendUrl}/events/${conversationId}${qs}`
+    console.log('[SSE] Connecting to', url.replace(/token=[^&]+/, 'token=…'))
     const es = new EventSource(url)
     esRef.current = es
 
@@ -109,7 +112,7 @@ export function useAgentEvents(conversationId: string | null) {
       es.close()
       esRef.current = null
     }
-  }, [conversationId])
+  }, [conversationId, sessionToken])
 
   return state
 }

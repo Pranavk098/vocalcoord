@@ -39,10 +39,21 @@ class FixtureShopProvider:
     ) -> Optional[dict]:
         return shop_db.get_best_shop(shops, needs_def_pump=needs_def_pump, hos_hours_remaining=hos_hours_remaining)
 
+    async def search_ranked(
+        self, needs_def_pump: bool, max_distance: float = 25,
+        geo_key: str = "unknown", hos_hours_remaining: Optional[float] = None,
+    ) -> tuple[list[dict], Optional[dict]]:
+        """Geo-hash-cached search+rank in one call (hot path). Falls back to
+        plain search+best when the cache misses or errors."""
+        return shop_db.search_shops_cached(
+            needs_def_pump=needs_def_pump, max_distance=max_distance,
+            geo_key=geo_key, hos_hours_remaining=hos_hours_remaining,
+        )
+
 
 class FixtureWarrantyProvider:
     async def lookup(self, warranty_code: str) -> Optional[dict]:
-        return warranty_db.lookup_warranty(warranty_code)
+        return warranty_db.lookup_warranty_cached(warranty_code)
 
 
 class FixtureDispatchProvider:

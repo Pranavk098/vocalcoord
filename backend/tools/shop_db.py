@@ -67,3 +67,42 @@ def get_best_shop(
     if not shops:
         return None
     return max(shops, key=lambda s: score_shop(s, needs_def_pump, hos_hours_remaining))
+
+
+def score_shops_batch(
+    shops: list[dict],
+    needs_def_pump: bool = False,
+    hos_hours_remaining: Optional[float] = None,
+) -> list[tuple[dict, float]]:
+    """Batch HOS computation: score every candidate in one pass and return
+    (shop, score) sorted best-first. Same math as score_shop — one loop instead
+    of max() re-walking — so a future Places-size list pays the HOS margin
+    computation once per shop, not once per comparison."""
+    scored = [(s, score_shop(s, needs_def_pump, hos_hours_remaining)) for s in shops]
+    scored.sort(key=lambda t: t[1], reverse=True)
+    return scored
+
+
+def search_shops_cached(
+    needs_def_pump: bool = False,
+    max_distance: float = 50,
+    geo_key: str = "unknown",
+    hos_hours_remaining: Optional[float] = None,
+) -> tuple[list[dict], Optional[dict]]:
+    """Geo-hash-keyed ranked-shop cache: (geo, part, HOS-bucket) -> (ranked, best).
+    TTL'd (SHOP_RANK_TTL_S). Falls back to the uncached path on any error."""
+    try:
+        from backend import cache as _cache
+
+        key = _cache.shop_cache_key(geo_key, needs_def_pump, hos_hours_remaining)
+        hit = _cache.shop_rank_cache.get(key)
+        if hit is not None:
+            return hit
+        shops = search_shops(needs_def_pump=needs_def_pump, max_distance=max_distance)
+        best = get_best_shop(shops, needs_def_pump=needs_def_pump, hos_hours_remaining=hos_hours_remaining)
+        out = (shops, best)
+        _cache.shop_rank_cache.set(key, out)
+        return out
+    except Exception:
+        shops = search_shops(needs_def_pump=needs_def_pump, max_distance=max_distance)
+        return shops, get_best_shop(shops, needs_def_pump=needs_def_pump, hos_hours_remaining=hos_hours_remaining)

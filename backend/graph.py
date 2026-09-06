@@ -82,22 +82,64 @@ def _route_by_intent(state: dict) -> str:
 
 
 async def fault_branch(state: dict) -> dict:
+    """Four agents fan out concurrently, each capped by its own budget.
+
+    - Per-branch asyncio.wait_for (BUDGETS_MS["branch_each"], default 350ms):
+      a hung branch returns its degraded fallback instead of stalling the turn.
+    - Early-partial SSE: each runner already streams agent_result as soon as
+      IT finishes (see shop_caller/warranty_scout/...); here we additionally
+      emit branch_partial as each future lands so Mission Control can paint
+      progress without waiting for the slowest branch.
+    - Never raises: slow/crashed branch -> cached/default partial flagged
+      degraded=True, synthesize still runs on whatever resolved.
+    """
     import asyncio
 
     from backend.agents.dispatch_relay import run_dispatch_relay
     from backend.agents.shop_caller import run_shop_caller
     from backend.agents.warranty_scout import run_warranty_scout
     from backend.agents.wellness_copilot import run_wellness_copilot
+    from backend.latency import BUDGETS_MS, run_with_budget
+    from backend.tracing import emit_traced
 
-    results = await asyncio.gather(
-        run_shop_caller(state),
-        run_warranty_scout(state),
-        run_wellness_copilot(state),
-        run_dispatch_relay(state),
+    budget = BUDGETS_MS["branch_each"]
+    runners = (
+        ("shop_caller", run_shop_caller(state),
+         {"shop_results": [], "best_shop": None}),
+        ("warranty_scout", run_warranty_scout(state),
+         {"warranty_findings": None}),
+        ("wellness_copilot", run_wellness_copilot(state),
+         {"wellness_response": "[CLEAR] HOS status temporarily unavailable — confirm with dispatch."}),
+        ("dispatch_relay", run_dispatch_relay(state),
+         {"dispatch_payload": {"load_number": state.get("load_number", "LOAD-0000"),
+                               "status": "PENDING", "delay_estimate_hours": 2,
+                               "reason": "Unscheduled mechanical repair",
+                               "notified": False, "simulated": True}}),
     )
+    pending = {
+        asyncio.ensure_future(
+            run_with_budget(coro, budget_ms=budget, fallback=fb, label=name)
+        ): name
+        for name, coro, fb in runners
+    }
     merged = dict(state)
-    for r in results:
-        merged.update(r)
+    degraded_branches: list[str] = []
+    while pending:
+        done, _ = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+        for fut in done:
+            name = pending.pop(fut)
+            result = fut.result()  # run_with_budget never raises
+            if result.get("degraded"):
+                degraded_branches.append(name)
+            merged.update({k: v for k, v in result.items() if k != "degraded"})
+            await emit_traced(
+                state["conversation_id"], state["trace_id"], state["t0"],
+                "branch_partial",
+                {"branch": name, "degraded": bool(result.get("degraded")),
+                 "remaining": sorted(pending[v] for v in pending)},
+            )
+    if degraded_branches:
+        merged["_degraded_branches"] = degraded_branches
     return merged
 
 

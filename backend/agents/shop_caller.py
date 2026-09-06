@@ -1,5 +1,5 @@
 from backend.providers import get_shop_provider
-from backend.tools.j1939 import lookup_fault, parse_fault_code
+from backend.tools.j1939 import lookup_fault_cached
 from backend.tracing import emit_traced
 
 
@@ -12,8 +12,7 @@ async def run_shop_caller(state: dict) -> dict:
         "message": f"Searching certified shops near {state['driver_location'].get('city', 'your location')}...",
     })
 
-    parsed = parse_fault_code(state.get("fault_code"))
-    fault = lookup_fault(parsed[0]) if parsed else None
+    parsed, fault = lookup_fault_cached(state.get("fault_code") or "")
     needs_def_pump = fault is not None and fault.get("likely_part") == "DEF Pump Assembly"
 
     await emit_traced(conv_id, trace_id, t0, "agent_tool_call", {
@@ -21,8 +20,20 @@ async def run_shop_caller(state: dict) -> dict:
         "args": {"radius_miles": 25, "needs_def_pump": needs_def_pump},
     })
 
-    shops = await provider.search(needs_def_pump=needs_def_pump, max_distance=25)
-    best = await provider.best(shops, needs_def_pump=needs_def_pump, hos_hours_remaining=state.get("hos_hours_remaining"))
+    # Geo-hash-keyed rank cache via the provider (repeat drivers in the same
+    # metro skip re-score; custom providers without search_ranked fall back to
+    # plain search+best — interface unchanged).
+    from backend import cache as _cache
+
+    geo = _cache.geo_hash(state.get("driver_location") or {})
+    if hasattr(provider, "search_ranked"):
+        shops, best = await provider.search_ranked(
+            needs_def_pump=needs_def_pump, max_distance=25, geo_key=geo,
+            hos_hours_remaining=state.get("hos_hours_remaining"),
+        )
+    else:
+        shops = await provider.search(needs_def_pump=needs_def_pump, max_distance=25)
+        best = await provider.best(shops, needs_def_pump=needs_def_pump, hos_hours_remaining=state.get("hos_hours_remaining"))
 
     if best:
         await emit_traced(conv_id, trace_id, t0, "agent_result", {

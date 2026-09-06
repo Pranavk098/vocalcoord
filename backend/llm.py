@@ -12,6 +12,7 @@ Both backends share one narrow contract: findings_block in, voice-reply string
 out. Returns (text, provider_used) so the audit trail and evals can attribute
 which backend actually produced the reply ("ollama" | "anthropic").
 """
+import asyncio
 import logging
 
 import anthropic
@@ -40,6 +41,10 @@ Rules: Be direct. No filler. Driver is behind the wheel. Never say "I" or "I've 
 If a finding is missing (no shop found, no warranty match), say so plainly instead of guessing."""
 
 _client: anthropic.AsyncAnthropic | None = None
+# Pooled Ollama client: one keep-alive connection pool per process instead of
+# a fresh TCP+TLS handshake per synthesis. Limits mirror a small fleet demo —
+# 20 pooled connections, 20 max concurrent per host.
+_ollama_client: httpx.AsyncClient | None = None
 
 
 def get_llm_provider() -> str:
@@ -65,22 +70,32 @@ async def _anthropic_synthesize(findings_block: str) -> str:
 
 async def _ollama_synthesize(findings_block: str) -> str:
     prompt = f"{_SYSTEM_PROMPT}\n\nAgent findings:\n{findings_block}\n\nVoice reply:"
-    async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT_SECONDS) as client:
-        resp = await client.post(
-            f"{OLLAMA_HOST}/api/generate",
-            json={
-                "model": OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "options": {"num_predict": SYNTHESIS_MAX_TOKENS},
-            },
-        )
-        resp.raise_for_status()
-        data = resp.json()
+    client = _get_ollama_client()
+    resp = await client.post(
+        "/api/generate",
+        json={
+            "model": OLLAMA_MODEL,
+            "prompt": prompt,
+            "stream": False,
+            "options": {"num_predict": SYNTHESIS_MAX_TOKENS},
+        },
+    )
+    resp.raise_for_status()
+    data = resp.json()
     text = (data.get("response") or "").strip()
     if not text:
         raise RuntimeError("Ollama returned empty response")
     return text
+
+
+def _get_ollama_client() -> httpx.AsyncClient:
+    global _ollama_client
+    if _ollama_client is None:
+        limits = httpx.Limits(max_connections=20, max_keepalive_connections=20)
+        _ollama_client = httpx.AsyncClient(
+            base_url=OLLAMA_HOST, timeout=OLLAMA_TIMEOUT_SECONDS, limits=limits
+        )
+    return _ollama_client
 
 
 async def llm_synthesize(findings_block: str, provider: str | None = None) -> tuple[str, str]:
@@ -89,12 +104,22 @@ async def llm_synthesize(findings_block: str, provider: str | None = None) -> tu
     Raises the underlying exception if every configured backend fails — callers
     (response.py / graph retry node) convert that into the degraded template so
     the driver never gets dead air.
+
+    Budget: the whole owned path is capped at BUDGETS_MS["synthesize_llm"]
+    (default 2000ms) via asyncio.wait_for — a hung Ollama/Anthropic call
+    degrades to template instead of stalling the turn.
     """
+    from backend.latency import BUDGETS_MS
+
     primary = (provider or PROVIDER_LLM or "anthropic").lower()
+    budget_s = BUDGETS_MS["synthesize_llm"] / 1000.0
     if primary == "local":
         try:
-            return await _ollama_synthesize(findings_block), "ollama"
+            text = await asyncio.wait_for(_ollama_synthesize(findings_block), timeout=budget_s)
+            return text, "ollama"
         except Exception as e:
             log.warning("Ollama synthesis failed (%s), falling back to Anthropic", e)
-            return await _anthropic_synthesize(findings_block), "anthropic"
-    return await _anthropic_synthesize(findings_block), "anthropic"
+            text = await asyncio.wait_for(_anthropic_synthesize(findings_block), timeout=budget_s)
+            return text, "anthropic"
+    text = await asyncio.wait_for(_anthropic_synthesize(findings_block), timeout=budget_s)
+    return text, "anthropic"

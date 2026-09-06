@@ -49,10 +49,16 @@ async def orchestrate(state: dict) -> dict:
 
     await emit_traced(conv_id, trace_id, t0, "orchestrator", {"intent": intent, "routing_to": agents})
 
-    tasks = [_AGENT_RUNNERS[agent](state) for agent in agents]
+    # Budget-capped fan-out (mirrors graph.fault_branch): a hung agent
+    # degrades to {} instead of stalling the turn. Never raises.
+    from backend.latency import BUDGETS_MS, run_with_budget
+
+    budget = BUDGETS_MS["branch_each"]
+    tasks = [run_with_budget(_AGENT_RUNNERS[agent](state), budget_ms=budget, fallback={}, label=agent)
+             for agent in agents]
     results = await asyncio.gather(*tasks)
 
     for result in results:
-        state.update(result)
+        state.update({k: v for k, v in result.items() if k != "degraded"})
 
     return state

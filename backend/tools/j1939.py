@@ -36,3 +36,24 @@ def parse_fault_code(code: Optional[str]) -> Optional[tuple[int, int]]:
 def lookup_fault(spn: int) -> Optional[dict]:
     _load()
     return _by_spn.get(spn)
+
+
+def lookup_fault_cached(raw_code: str) -> tuple[Optional[tuple[int, int]], Optional[dict]]:
+    """Cached fault decode: raw string -> (parsed, record). TTL'd in
+    backend/cache.py so re-triggers skip re-parse. Falls back to the
+    uncached path on any cache error (cache must never break a turn)."""
+    try:
+        from backend import cache as _cache
+
+        key = f"fault:{(raw_code or '').strip().lower()}"
+        hit = _cache.fault_decode_cache.get(key)
+        if hit is not None:
+            return hit
+        parsed = parse_fault_code(raw_code)
+        fault = lookup_fault(parsed[0]) if parsed else None
+        out = (parsed, fault)
+        _cache.fault_decode_cache.set(key, out)
+        return out
+    except Exception:
+        parsed = parse_fault_code(raw_code)
+        return parsed, (lookup_fault(parsed[0]) if parsed else None)

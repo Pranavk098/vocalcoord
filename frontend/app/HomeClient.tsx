@@ -8,11 +8,16 @@ import { useAgentEvents } from '@/hooks/useAgentEvents'
 
 function HomeClientInner() {
   const [conversationId, setConversationId] = useState<string | null>(null)
-  const agentState = useAgentEvents(conversationId)
+  const [sessionToken, setSessionToken] = useState<string | null>(null)
+  const agentState = useAgentEvents(conversationId, sessionToken)
 
-  const handleNewSession = (id: string) => {
+  const handleNewSession = (id: string, token: string | null) => {
     setConversationId(null)
-    setTimeout(() => setConversationId(id), 0)
+    setSessionToken(null)
+    setTimeout(() => {
+      setConversationId(id)
+      setSessionToken(token)
+    }, 0)
   }
 
   const { status, isSpeaking, start, stop } = useConversation(handleNewSession)

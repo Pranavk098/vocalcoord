@@ -21,7 +21,9 @@ import json
 import statistics
 import sys
 from pathlib import Path
-from time import monotonic
+# NOTE: perf_counter, not monotonic — on Windows monotonic() ticks at ~15.6ms,
+# quantizing sub-50ms turns to 0.0/15.6/31.2ms. perf_counter is QPC-backed.
+from time import perf_counter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -76,15 +78,16 @@ async def run_case(client: AsyncClient, i: int, case: dict) -> dict:
             "load_number": f"LOAD-EVAL-{i:02d}",
         },
     }
-    t0 = monotonic()
+    t0 = perf_counter()
     resp = await client.post("/webhook/tool-call", json=payload)
-    latency_ms = round((monotonic() - t0) * 1000, 1)
+    latency_ms = round((perf_counter() - t0) * 1000, 1)
     assert resp.status_code == 200, resp.text
     reply = resp.json()["result"]
     template_hit = reply.strip().endswith("Ready to set nav — yes or no?")
     # HOS correctness: CRITICAL/SEVERE must surface an HOS warning; CLEAR must not force one.
     needs_hos = case["tier"] in ("CRITICAL", "SEVERE")
     hos_ok = ("HOS" in reply) if needs_hos else True
+    stages = _stage_waterfall(f"eval_lat_{i:02d}")
     return {
         "case": i + 1,
         "fault_code": case["fault_code"],
@@ -94,7 +97,33 @@ async def run_case(client: AsyncClient, i: int, case: dict) -> dict:
         "template_hit": template_hit,
         "hos_correct": bool(hos_ok),
         "reply_chars": len(reply),
+        "stages_ms": stages,
     }
+
+
+def _stage_waterfall(conversation_id: str) -> dict:
+    """Per-stage server-side timing for one turn.
+
+    Primary source: backend.main._last_turn_stages (true parse/graph/total ms
+    measured inside the webhook — the eval shares memory with the app via
+    ASGITransport). Fallback: audit-trail event counts when stages are absent
+    (e.g. cached re-trigger replies that skip the graph).
+    """
+    try:
+        from backend.main import _last_turn_stages
+        from backend import audit_log
+
+        # Latest trace for this conversation -> its recorded stages.
+        conn = audit_log._get_conn()
+        row = conn.execute(
+            "SELECT trace_id FROM audit_events WHERE conversation_id = ? ORDER BY id DESC LIMIT 1",
+            (conversation_id,),
+        ).fetchone()
+        if row and row[0] in _last_turn_stages:
+            return dict(_last_turn_stages[row[0]])
+    except Exception:
+        pass
+    return {}
 
 
 async def main() -> dict:
@@ -143,6 +172,28 @@ async def main() -> dict:
     for tier in ("CRITICAL", "SEVERE", "CAUTION", "WATCH", "CLEAR"):
         t = tiers.get(tier, {"n": 0, "hos_correct": 0})
         print(f"  {tier}: {t['hos_correct']}/{t['n']} correct")
+
+    # Stage breakdown (server-side, from _last_turn_stages) + budget verdicts.
+    try:
+        from backend.latency import BUDGETS_MS
+
+        def _stage_p(pct: float, key: str) -> float | None:
+            vals = [r["stages_ms"].get(key) for r in results if r["stages_ms"].get(key) is not None]
+            return _pct(vals, pct) if vals else None
+
+        print("\nStage breakdown (server-side ms):")
+        print("| stage | p50 | p95 | budget | verdict |")
+        print("|---|---|---|---|---|")
+        for key, budget_key in (("parse_ms", "parse"), ("graph_ms", "branches"), ("total_ms", "turn")):
+            p50, p95 = _stage_p(50, key), _stage_p(95, key)
+            budget = BUDGETS_MS[budget_key]
+            verdict = "PASS" if (p95 is not None and p95 < budget) else ("n/a" if p95 is None else "OVER")
+            print(f"| {key} | {p50} | {p95} | <{budget:g} | {verdict} |")
+        summary["budgets_ms"] = dict(BUDGETS_MS)
+        summary["stage_p50"] = {k: _stage_p(50, k) for k in ("parse_ms", "graph_ms", "total_ms")}
+        summary["stage_p95"] = {k: _stage_p(95, k) for k in ("parse_ms", "graph_ms", "total_ms")}
+    except Exception as e:
+        print(f"\n(stage breakdown unavailable: {e})")
 
     if args.json:
         Path(args.json).write_text(json.dumps(summary, indent=2))
