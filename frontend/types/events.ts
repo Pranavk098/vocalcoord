@@ -32,6 +32,8 @@ export interface AgentState {
   agents: Record<AgentName, AgentCardState>
   eventLog: EventLogEntry[]
   voiceReply: string | null
+  /** Multi-turn nav gate: null until the driver answers the closing yes/no. */
+  navConfirmed: boolean | null
 }
 
 export const initialAgentState: AgentState = {
@@ -46,6 +48,7 @@ export const initialAgentState: AgentState = {
   },
   eventLog: [],
   voiceReply: null,
+  navConfirmed: null,
 }
 
 // SSE event union
@@ -57,5 +60,11 @@ export type AgentEvent =
   | { type: 'agent_result';      data: { agent: AgentName; summary: string; value?: string } }
   | { type: 'agent_complete';    data: { agent: AgentName } }
   | { type: 'voice_reply_ready'; data: { text: string } }
+  | { type: 'nav_confirmed';     data: { confirmed: boolean | null; destination?: string } }
+  | { type: 'synthesis';         data: { source: string; attempts: number } }
+  | { type: 'synthesis_retry';   data: { source: string; attempts: number } }
+  | { type: 'stt_received';      data: { filename?: string; bytes: number } }
+  | { type: 'stt_vad';           data: { is_speech: boolean; speech_ratio: number; method: string } }
+  | { type: 'stt_complete';      data: { text: string; stt_ms: number } }
   | { type: 'dispatch_sent';     data: { load_number: string; eta_delay: string } }
   | { type: 'ping' }

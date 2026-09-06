@@ -9,6 +9,7 @@ dist/
 build/
 .venv/
 venv/
+backend/data/audit_trail.db
 
 # Node
 node_modules/

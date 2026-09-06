@@ -1,5 +1,5 @@
 # backend/agents/wellness_copilot.py
-from backend.events import emit
+from backend.tracing import emit_traced
 
 # Federal HOS rules (property-carrying drivers, FMCSA 49 CFR Part 395)
 _SHOP_STOP_HOURS = 2.0   # estimated repair time used in margin calculations
@@ -71,24 +71,18 @@ def _evaluate_hos(hos: float) -> tuple[str, str, str | None]:
 
 
 async def run_wellness_copilot(state: dict) -> dict:
-    conv_id = state["conversation_id"]
+    conv_id, trace_id, t0 = state["conversation_id"], state["trace_id"], state["t0"]
     hos = float(state.get("hos_hours_remaining", 8.0))
 
-    await emit(conv_id, {
-        "type": "agent_start",
-        "data": {
-            "agent": "wellness_copilot",
-            "message": f"Checking HOS compliance — {hos:.1f} hrs on 11-hr driving limit...",
-        }
+    await emit_traced(conv_id, trace_id, t0, "agent_start", {
+        "agent": "wellness_copilot",
+        "message": f"Checking HOS compliance — {hos:.1f} hrs on 11-hr driving limit...",
     })
 
-    await emit(conv_id, {
-        "type": "agent_tool_call",
-        "data": {
-            "agent": "wellness_copilot",
-            "tool": "check_hos_rules",
-            "args": {"hours_remaining": hos, "estimated_stop_hours": _SHOP_STOP_HOURS},
-        }
+    await emit_traced(conv_id, trace_id, t0, "agent_tool_call", {
+        "agent": "wellness_copilot",
+        "tool": "check_hos_rules",
+        "args": {"hours_remaining": hos, "estimated_stop_hours": _SHOP_STOP_HOURS},
     })
 
     summary, status_label, value_label = _evaluate_hos(hos)
@@ -100,7 +94,7 @@ async def run_wellness_copilot(state: dict) -> dict:
     if value_label:
         result_data["value"] = value_label
 
-    await emit(conv_id, {"type": "agent_result", "data": result_data})
-    await emit(conv_id, {"type": "agent_complete", "data": {"agent": "wellness_copilot"}})
+    await emit_traced(conv_id, trace_id, t0, "agent_result", result_data)
+    await emit_traced(conv_id, trace_id, t0, "agent_complete", {"agent": "wellness_copilot"})
 
     return {"wellness_response": f"[{status_label}] {summary}"}

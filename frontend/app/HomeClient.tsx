@@ -18,9 +18,15 @@ function HomeClientInner() {
   const { status, isSpeaking, start, stop } = useConversation(handleNewSession)
 
   // Auto-end session once the voice reply has finished playing.
-  // spokenRef tracks whether ElevenLabs has started speaking so we don't
-  // fire on the initial false→false no-op before speech begins.
+  // Multi-turn: the fault reply ends with a nav yes/no question answered via
+  // the confirm_nav_yes_no tool as a real second turn — do NOT end while that
+  // answer is still pending (navConfirmed === null and reply is a question).
+  // End after the nav turn lands and its speech finishes.
   const spokenRef = useRef(false)
+  const awaitingNav = agentState.voiceReply != null
+    && agentState.navConfirmed === null
+    && agentState.voiceReply.includes('set nav')
+    && agentState.voiceReply.trim().endsWith('?')
   useEffect(() => {
     if (!agentState.voiceReply) {
       spokenRef.current = false
@@ -31,10 +37,11 @@ function HomeClientInner() {
       return
     }
     if (!spokenRef.current) return  // reply set but ElevenLabs hasn't started speaking yet
+    if (awaitingNav) return  // driver owes a yes/no — keep the session open
     // Finished speaking — give a 2.5 s grace period then end cleanly
     const timer = setTimeout(() => stop(), 2500)
     return () => clearTimeout(timer)
-  }, [isSpeaking, agentState.voiceReply, stop])
+  }, [isSpeaking, agentState.voiceReply, awaitingNav, stop])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>

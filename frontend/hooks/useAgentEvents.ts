@@ -67,6 +67,9 @@ function reducer(state: AgentState, action: Action): AgentState {
     case 'voice_reply_ready':
       return { ...state, voiceReply: event.data.text }
 
+    case 'nav_confirmed':
+      return { ...state, navConfirmed: event.data.confirmed ?? null }
+
     default:
       return state
   }
